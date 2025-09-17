@@ -11,4 +11,4 @@ dist
 frontend/build
 frontend/.env
 .env
-.env.*
+.env

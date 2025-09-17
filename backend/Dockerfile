@@ -9,7 +9,8 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV FLASK_APP=execution_layer/execution_api.py
 ENV FLASK_DEBUG=1
 # Pass OpenAI API key at build time (e.g. `docker build --build-arg OPENAI_API_KEY=my_key .`)
-ARG OPENAI_API_KEY="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"
+# key commented for security reasons, please provide your own key
+# ARG OPENAI_API_KEY=""
 ENV OPENAI_API_KEY=${OPENAI_API_KEY}
 
 # Install system dependencies
