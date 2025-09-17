@@ -10,7 +10,8 @@ ENV FLASK_APP=execution_layer/execution_api.py
 ENV FLASK_DEBUG=1
 # Pass OpenAI API key at build time (e.g. `docker build --build-arg OPENAI_API_KEY=my_key .`)
 # key commented for security reasons, please provide your own key
-
+ARG OPENAI_API_KEY="sk-proj-"
+ENV OPENAI_API_KEY=${OPENAI_API_KEY}
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
