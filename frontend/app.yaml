@@ -1,0 +1,36 @@
+service: insightbot-frontend-v2
+
+runtime: nodejs20
+
+env: standard
+
+instance_class: B1
+
+handlers:
+  # Static assets with longer cache for better performance
+  - url: /(.*\.(js|css|png|jpg|gif|svg|woff|woff2|ttf|eot|webp))$
+    static_files: dist/\1
+    upload: dist/.*\.(js|css|png|jpg|gif|svg|woff|woff2|ttf|eot|webp)$
+    expiration: 30d
+    
+  # JSON and other dynamic files with shorter cache
+  - url: /(.*\.(json|ico))$
+    static_files: dist/\1
+    upload: dist/.*\.(json|ico)$
+    expiration: 1h
+    
+  # All other routes serve index.html for React Router
+  - url: /.*
+    static_files: dist/index.html
+    upload: dist/index.html
+    expiration: 1h
+
+basic_scaling:
+  idle_timeout: 600s
+  max_instances: 1
+
+service_account: insightbot-467305@appspot.gserviceaccount.com
+
+# Environment variables for production
+env_variables:
+  NODE_ENV: production
