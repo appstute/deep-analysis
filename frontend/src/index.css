@@ -1,0 +1,217 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Zingworks Insight Bot Design System - Professional Data Analytics Theme
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* Professional blue-based palette for data analytics */
+    --background: 0 0% 100%;
+    --foreground: 210 29% 24%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 210 29% 24%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 29% 24%;
+
+    /* Primary: Vibrant purple theme */
+    --primary: 266 100% 50%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 266 100% 45%;
+
+    /* Secondary: Green accent for success states */
+    --secondary: 122 39% 49%;
+    --secondary-foreground: 0 0% 100%;
+    --secondary-hover: 122 39% 45%;
+
+    /* Muted colors for subtle elements */
+    --muted: 220 13% 95%;
+    --muted-foreground: 220 9% 46%;
+
+    /* Accent colors for interactive elements */
+    --accent: 266 30% 95%;
+    --accent-foreground: 266 100% 50%;
+
+    /* Status colors */
+    --success: 122 39% 49%;
+    --success-foreground: 0 0% 100%;
+    
+    --warning: 36 100% 50%;
+    --warning-foreground: 0 0% 100%;
+    
+    --destructive: 0 79% 72%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Form elements */
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 266 100% 50%;
+
+    /* Professional gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(266, 100%, 50%), hsl(266, 100%, 55%));
+    --gradient-success: linear-gradient(135deg, hsl(122, 39%, 49%), hsl(122, 39%, 57%));
+    --gradient-dashboard: linear-gradient(135deg, hsl(220, 13%, 98%), hsl(220, 13%, 95%));
+
+    /* Shadows for depth */
+    --shadow-card: 0 4px 12px -2px hsl(266 100% 50% / 0.08);
+    --shadow-elevated: 0 8px 32px -4px hsl(266 100% 50% / 0.12);
+    --shadow-modal: 0 20px 60px -10px hsl(266 100% 50% / 0.25);
+
+    /* Animations */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-fast: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 266 100% 50%;
+  }
+
+  .dark {
+    --background: 210 29% 8%;
+    --foreground: 0 0% 98%;
+
+    --card: 210 29% 12%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 210 29% 12%;
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 266 100% 60%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 122 39% 35%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 210 20% 18%;
+    --muted-foreground: 220 9% 65%;
+
+    --accent: 266 30% 18%;
+    --accent-foreground: 266 100% 80%;
+
+    --success: 122 39% 35%;
+    --success-foreground: 0 0% 100%;
+    
+    --warning: 36 100% 45%;
+    --warning-foreground: 0 0% 100%;
+    
+    --destructive: 0 79% 65%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 210 20% 18%;
+    --input: 210 20% 18%;
+    --ring: 266 100% 60%;
+
+    --sidebar-background: 210 29% 8%;
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-primary: 266 100% 40%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 20% 18%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 210 20% 18%;
+    --sidebar-ring: 266 100% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+}
+
+@layer components {
+  /* Professional dashboard card styles */
+  .dashboard-card {
+    @apply bg-card border border-border rounded-xl p-6 shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-elevated)] transition-all duration-300;
+  }
+
+  /* Data analytics specific components */
+  .analytics-grid {
+    @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6;
+  }
+
+  .progress-step {
+    @apply flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground text-sm font-medium;
+  }
+
+  .progress-step.completed {
+    @apply bg-success text-success-foreground;
+  }
+
+  .progress-step.current {
+    @apply bg-primary ring-4 ring-primary/20;
+  }
+
+  /* Real-time chat styles */
+  .chat-message {
+    @apply p-4 rounded-lg mb-3 max-w-[80%] break-words;
+  }
+
+  .chat-message.user {
+    @apply bg-primary text-primary-foreground ml-auto;
+  }
+
+  .chat-message.assistant {
+    @apply bg-muted text-muted-foreground mr-auto;
+  }
+
+  /* File upload area */
+  .upload-area {
+    @apply border-2 border-dashed border-border rounded-xl p-8 text-center hover:border-primary/50 transition-colors;
+  }
+
+  .upload-area.dragover {
+    @apply border-primary bg-primary/5;
+  }
+
+  /* Status indicators */
+  .status-indicator {
+    @apply inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium;
+  }
+
+  .status-indicator.active {
+    @apply bg-success/10 text-success;
+  }
+
+  .status-indicator.processing {
+    @apply bg-warning/10 text-warning;
+  }
+
+  .status-indicator.error {
+    @apply bg-destructive/10 text-destructive;
+  }
+
+  /* Gradient backgrounds */
+  .gradient-primary {
+    background: var(--gradient-primary);
+  }
+
+  .gradient-success {
+    background: var(--gradient-success);
+  }
+
+  .gradient-dashboard {
+    background: var(--gradient-dashboard);
+  }
+}

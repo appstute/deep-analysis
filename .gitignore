@@ -1,0 +1,14 @@
+.venv
+__pycache__
+*.pyc
+*.pkl
+*.png
+*.svg
+*.csv
+*.json
+node_modules
+dist
+frontend/build
+frontend/.env
+.env
+.env.*

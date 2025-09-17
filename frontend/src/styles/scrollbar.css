@@ -1,0 +1,78 @@
+/* Custom scrollbar styles for analysis containers */
+
+/* Webkit scrollbars (Chrome, Safari, Edge) */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+
+.custom-scrollbar::-webkit-scrollbar-corner {
+  background: hsl(var(--muted));
+}
+
+/* Firefox scrollbars */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.3) hsl(var(--muted));
+}
+
+/* Ensure scrollarea content is properly constrained */
+.scroll-area-viewport {
+  height: 100% !important;
+}
+
+/* Break long words in logs and reports */
+.log-content {
+  word-break: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+.report-content {
+  word-break: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+/* Ensure images in reports don't overflow */
+.report-content img {
+  max-width: 100% !important;
+  height: auto !important;
+  object-fit: contain;
+}
+
+/* Ensure tables in reports are responsive */
+.report-content table {
+  width: 100% !important;
+  table-layout: fixed;
+  overflow-wrap: break-word;
+}
+
+.report-content td,
+.report-content th {
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+/* Ensure code blocks don't overflow */
+.report-content pre,
+.report-content code {
+  white-space: pre-wrap !important;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
