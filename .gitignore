@@ -5,10 +5,9 @@ __pycache__
 *.png
 *.svg
 *.csv
-*.json
 node_modules
 dist
 frontend/build
 frontend/.env
-.env
-.env
+sessions.json
+jobs.json
