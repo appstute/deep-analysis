@@ -8,7 +8,10 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import ConnectorsGrid, { ConnectorItem } from '@/components/ConnectorsGrid';
+<<<<<<< HEAD
+=======
 
+>>>>>>> 5c655722a1351a2f77505540ea8ac7baebcd9ccf
 import { 
   Upload, 
   Brain, 
@@ -31,10 +34,16 @@ const Dashboard: React.FC = () => {
   const [connectorsOpen, setConnectorsOpen] = useState(false);
 
 
+  const [connectorsOpen, setConnectorsOpen] = useState(false);
+
   const handleGetStarted = () => {
+<<<<<<< HEAD
+    setConnectorsOpen(true);
+=======
         setConnectorsOpen(true);
 
     // navigate('/upload');
+>>>>>>> 5c655722a1351a2f77505540ea8ac7baebcd9ccf
   };
 
   const handleContinueAnalysis = () => {
@@ -239,7 +248,12 @@ const Dashboard: React.FC = () => {
           </div> */}
         </div>
       </main>
+<<<<<<< HEAD
+
+      {/* Connectors Modal */}
+=======
             {/* Connectors Modal */}
+>>>>>>> 5c655722a1351a2f77505540ea8ac7baebcd9ccf
       <Dialog open={connectorsOpen} onOpenChange={setConnectorsOpen}>
         <DialogContent className="sm:max-w-[560px]">
           <DialogHeader>
@@ -271,7 +285,24 @@ const Dashboard: React.FC = () => {
                   </div>
                 ),
                 onClick: () => { setConnectorsOpen(false); navigate('/connect/salesforce'); },
+<<<<<<< HEAD
+              },
+              {
+                key: 'sql',
+                title: 'SQL Database',
+                description: 'MySQL, Postgres, SQL Server',
+                icon: (
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+                    <Database className="w-5 h-5 text-emerald-600" />
+                  </div>
+                ),
+                onClick: () => {},
+                disabled: true,
+                comingSoonLabel: 'Coming soon',
+              },
+=======
               }
+>>>>>>> 5c655722a1351a2f77505540ea8ac7baebcd9ccf
             ];
             return <ConnectorsGrid items={items} />;
           })()}

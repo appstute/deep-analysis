@@ -18,6 +18,7 @@ import Upload from "./pages/Upload";
 import AnalysisHistory from './pages/AnalysisHistory';
 import AdminDashboard from './pages/AdminDashboard';
 import Analysis from './pages/Analysis';
+import SalesforceConnector from './pages/SalesforceConnector';
 
 const queryClient = new QueryClient();
 
@@ -76,6 +77,14 @@ const App: React.FC = () => {
                     } 
                   />
                   <Route 
+                    path="/connect/salesforce" 
+                    element={
+                      <ProtectedRoute>
+                        <SalesforceConnector />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route 
                     path="/analysis-history" 
                     element={
                       <ProtectedRoute>
@@ -88,6 +97,14 @@ const App: React.FC = () => {
                     element={
                       <ProtectedRoute requireAdmin>
                         <AdminDashboard />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route 
+                    path="/connect/salesforce" 
+                    element={
+                      <ProtectedRoute requireAdmin>
+                        <SalesforceConnector />
                       </ProtectedRoute>
                     } 
                   />
