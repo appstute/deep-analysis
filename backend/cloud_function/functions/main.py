@@ -9,25 +9,110 @@ import requests
 import time
 import io
 from datetime import datetime
+from google.cloud import secretmanager
 
 # Initialize Firebase Admin SDK
 initialize_app()
 
 # ============================================================================
+# SECRET MANAGER UTILITIES
+# ============================================================================
+
+def get_secret_from_secret_manager(secret_name):
+    try:
+        # Initialize Secret Manager client
+        client = secretmanager.SecretManagerServiceClient()
+                
+        # Access the secret version
+        response = client.access_secret_version(request={"name": f"projects/insightbot-467305/secrets/{secret_name}/versions/latest"})
+        
+        # Decode the secret value
+        secret_value = response.payload.data.decode("UTF-8")
+        
+        print(f"Successfully retrieved secret: {secret_name}")
+        return secret_value.strip()
+        
+    except Exception as e:
+        print(f"Failed to retrieve secret {secret_name}: {str(e)}")
+        return None
+
+def convert_email_to_secret_name(email):
+    try:
+        # Replace @ with _ and . with _ to create valid secret name
+        secret_name = email.replace('@', '_').replace('.', '_')
+        
+        # Add _salesforce suffix
+        secret_name = f"{secret_name}_salesforce"
+        
+        print(f"Converted email '{email}' to secret name: '{secret_name}'")
+        return secret_name
+        
+    except Exception as e:
+        print(f"Error converting email to secret name: {str(e)}")
+        return None
+
+def get_salesforce_credentials(user_email):
+    try:
+        # Convert email to secret name format
+        secret_name = convert_email_to_secret_name(user_email)
+        
+        if not secret_name:
+            print(f"Failed to convert email '{user_email}' to secret name")
+            return None
+        
+        credentials_json = get_secret_from_secret_manager(secret_name)
+        
+        if not credentials_json:
+            print(f"Failed to retrieve secret '{secret_name}' from Secret Manager")
+            return None
+        
+        print(f"Raw secret value: {credentials_json[:100]}...")  # Show first 100 chars for debugging
+        
+        # Parse the JSON string to get credentials dictionary
+        credentials = json.loads(credentials_json)
+        
+        # Validate that all required fields are present
+        required_fields = ['client_id', 'client_secret', 'username', 'password']
+        missing_fields = [field for field in required_fields if field not in credentials]
+        
+        if missing_fields:
+            print(f"Missing required fields: {missing_fields}")
+            return None
+        
+        print("Successfully retrieved and parsed Salesforce credentials from Secret Manager")
+        return credentials
+        
+    except json.JSONDecodeError as e:
+        return None
+    except Exception as e:
+        print(f"Error retrieving Salesforce credentials: {str(e)}")
+        return None
+
+# ============================================================================
 # SALESFORCE AUTHENTICATION
 # ============================================================================
 
-def login_to_salesforce():
+def login_to_salesforce(user_email):
     # Salesforce OAuth 2.0 token endpoint
     url = 'https://login.salesforce.com/services/oauth2/token'
 
-    # OAuth payload with credentials
+    # Get credentials from Secret Manager
+    credentials = get_salesforce_credentials(user_email)
+    
+    if not credentials:
+        return {
+            "status": "connection failed",
+            "message": "Failed to retrieve Salesforce credentials from Secret Manager",
+            "data": None,
+        }
+
+    # OAuth payload with credentials from Secret Manager
     payload = {
         'grant_type': 'password',  # Username-password flow
-        'client_id': '3MVG9rZjd7MXFdLhbfl8Ne7OfHK3FsYRYBgXjXfEQPbCBNVLLiGneBcf6GP0xg_gZL4qBEWWxCSTmNNQNjbm4',
-        'client_secret': 'A6098AB4B122691A0FA9F69D34641EFC10E8D7264C1A8EE68E9C83632E957B89',
-        'username': 'minakshi.patil837@agentforce.com',
-        'password': 'Min@990301EbsOgYxBGXgpq7cJgR8Cme8a'  # password + security_token
+        'client_id': credentials['client_id'],
+        'client_secret': credentials['client_secret'],
+        'username': credentials['username'],
+        'password': credentials['password']  # password + security_token
     }
 
     try:
@@ -427,7 +512,7 @@ def zingworks_salesforce_connector(req: https_fn.Request) -> https_fn.Response:
         # ====================================================================
         # STEP 1: AUTHENTICATE WITH SALESFORCE
         # ====================================================================
-        auth_result = login_to_salesforce()
+        auth_result = login_to_salesforce(user_email)
         
         if auth_result['status'] != 'success':
             return https_fn.Response(json.dumps(auth_result), status=401, headers=headers)

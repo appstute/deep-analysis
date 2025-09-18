@@ -14,6 +14,7 @@
   "functions": [
     {
       "source": "functions",
+      "service_account": "firebase-adminsdk-fbsvc@insightbot-467305.iam.gserviceaccount.com",
       "codebase": "default",
       "ignore": [
         "venv",
