@@ -100,6 +100,14 @@ const App: React.FC = () => {
                       </ProtectedRoute>
                     } 
                   />
+                  <Route 
+                    path="/connect/salesforce" 
+                    element={
+                      <ProtectedRoute requireAdmin>
+                        <SalesforceConnector />
+                      </ProtectedRoute>
+                    } 
+                  />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </SessionProvider>

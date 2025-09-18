@@ -11,3 +11,11 @@ frontend/build
 frontend/.env
 sessions.json
 jobs.json
+.env
+*.env
+Dockerfile
+insightbot-467305-firebase-adminsdk-fbsvc-7a3d9adf09.json
+
+# Explicit backend ignores
+backend/.env
+backend/Dockerfile

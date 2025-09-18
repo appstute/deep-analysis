@@ -2,7 +2,7 @@ import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { ChevronRight } from 'lucide-react';
 
-export type ConnectorKey = 'upload' | 'salesforce' | 'sql';
+export type ConnectorKey = 'upload' | 'salesforce' ;
 
 export interface ConnectorItem {
   key: ConnectorKey;

@@ -30,11 +30,9 @@ export interface ConnectorFormProps {
   fields: FieldConfig[];
   onSubmit: (values: Record<string, string>) => Promise<void> | void;
   submitLabel?: string;
-  inputClassName?: string;
-  spacingClassName?: string; // controls vertical gap between fields
 }
 
-const ConnectorForm: React.FC<ConnectorFormProps> = ({ title, description, fields, onSubmit, submitLabel, inputClassName, spacingClassName }) => {
+const ConnectorForm: React.FC<ConnectorFormProps> = ({ title, description, fields, onSubmit, submitLabel }) => {
   const schemaShape: Record<string, z.ZodTypeAny> = {};
   fields.forEach((f) => {
     const base = z.string().trim();
@@ -58,12 +56,12 @@ const ConnectorForm: React.FC<ConnectorFormProps> = ({ title, description, field
         {description && <p className="text-sm text-muted-foreground">{description}</p>}
       </div>
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(handleSubmit)} className={spacingClassName || "space-y-4"}>
+        <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
           {fields.map((field) => (
             <FormField
               key={field.name}
               control={form.control}
-              name={field.name as string}
+              name={field.name as any}
               render={({ field: rhfField }) => (
                 <FormItem>
                   <FormLabel>{field.label}</FormLabel>
@@ -83,7 +81,6 @@ const ConnectorForm: React.FC<ConnectorFormProps> = ({ title, description, field
                       <Input
                         type={field.type === 'password' ? 'password' : 'text'}
                         placeholder={field.placeholder}
-                        className={inputClassName}
                         {...rhfField}
                       />
                     )}
@@ -104,5 +101,3 @@ const ConnectorForm: React.FC<ConnectorFormProps> = ({ title, description, field
 };
 
 export default ConnectorForm;
-
-

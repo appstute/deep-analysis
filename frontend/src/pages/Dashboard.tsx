@@ -8,6 +8,10 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import ConnectorsGrid, { ConnectorItem } from '@/components/ConnectorsGrid';
+<<<<<<< HEAD
+=======
+
+>>>>>>> 5c655722a1351a2f77505540ea8ac7baebcd9ccf
 import { 
   Upload, 
   Brain, 
@@ -27,11 +31,19 @@ const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const { hasInputData } = useSession();
   const navigate = useNavigate();
+  const [connectorsOpen, setConnectorsOpen] = useState(false);
+
 
   const [connectorsOpen, setConnectorsOpen] = useState(false);
 
   const handleGetStarted = () => {
+<<<<<<< HEAD
     setConnectorsOpen(true);
+=======
+        setConnectorsOpen(true);
+
+    // navigate('/upload');
+>>>>>>> 5c655722a1351a2f77505540ea8ac7baebcd9ccf
   };
 
   const handleContinueAnalysis = () => {
@@ -122,7 +134,7 @@ const Dashboard: React.FC = () => {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent>
+             <CardContent>
                 <p className="text-muted-foreground mb-4">
                 Start by connecting your data sources—whether through integrations or by uploading a CSV/Excel file. 
                 Define your domain context, and let our AI generate a comprehensive analysis.
@@ -236,8 +248,12 @@ const Dashboard: React.FC = () => {
           </div> */}
         </div>
       </main>
+<<<<<<< HEAD
 
       {/* Connectors Modal */}
+=======
+            {/* Connectors Modal */}
+>>>>>>> 5c655722a1351a2f77505540ea8ac7baebcd9ccf
       <Dialog open={connectorsOpen} onOpenChange={setConnectorsOpen}>
         <DialogContent className="sm:max-w-[560px]">
           <DialogHeader>
@@ -269,6 +285,7 @@ const Dashboard: React.FC = () => {
                   </div>
                 ),
                 onClick: () => { setConnectorsOpen(false); navigate('/connect/salesforce'); },
+<<<<<<< HEAD
               },
               {
                 key: 'sql',
@@ -283,6 +300,9 @@ const Dashboard: React.FC = () => {
                 disabled: true,
                 comingSoonLabel: 'Coming soon',
               },
+=======
+              }
+>>>>>>> 5c655722a1351a2f77505540ea8ac7baebcd9ccf
             ];
             return <ConnectorsGrid items={items} />;
           })()}
