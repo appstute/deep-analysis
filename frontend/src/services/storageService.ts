@@ -162,6 +162,7 @@ export class StorageService {
     this.setItem(`session_${sessionId}`, JSON.stringify(data));
   }
 
+
   getSessionData(sessionId: string): any | null {
     try {
       const stored = this.getItem(`session_${sessionId}`);
