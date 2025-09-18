@@ -1,9 +1,6 @@
-import re
-import uuid
-from flask import Flask, request, jsonify, Response, g, abort
-import asyncio
+from flask import Flask, request, jsonify, Response, g
 from flask_cors import CORS
-from flask_socketio import SocketIO, emit, join_room, leave_room
+from flask_socketio import SocketIO
 import threading
 from dotenv import load_dotenv
 from .session_manager import SessionManager
@@ -19,17 +16,9 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 import os
-import shutil
 import traceback
-from logger import add_log, get_logs, clear_logs, get_job_logs, add_job_log, clear_job_logs
-import tempfile
-from werkzeug.utils import secure_filename
-from typing import List, Dict, Any, Optional
-from io import StringIO
-from pydantic import BaseModel
+from logger import add_log, get_logs, get_job_logs
 from openai import OpenAI
-import numpy as np
-import math
 
 # Global variable to store the socketio instance
 _global_socketio_instance = None
@@ -96,9 +85,26 @@ class ApiServer:
         self.app.register_blueprint(email_bp)
         self.app.register_blueprint(user_bp)
         
+        # Expose managers/clients on app for blueprints
+        self.app.session_manager = self.session_manager
+        self.app.job_manager = self.job_manager
+        self.app.requests_session = self.session
+        self.app.socketio = self.socketio
+
         # Register routes and WebSocket events
         self.register_routes()
         self.register_socketio_events()
+
+        # Register extracted blueprints
+        try:
+            from .blueprints.sessions import sessions_bp
+            from .blueprints.data import data_bp
+            from .blueprints.salesforce import salesforce_bp
+            self.app.register_blueprint(sessions_bp)
+            self.app.register_blueprint(data_bp)
+            self.app.register_blueprint(salesforce_bp)
+        except Exception as e:
+            print(f"⚠️  Failed to register blueprints: {e}")
 
         # Register global auth middleware
         @self.app.before_request
@@ -172,147 +178,9 @@ class ApiServer:
                 return None
     
     def register_socketio_events(self):
-        """Register WebSocket event handlers for job progress streaming"""
-        
-        @self.socketio.on('connect')
-        def handle_connect():
-            print(f"[API LAYER] WebSocket client connected: {request.sid}")
-        
-        @self.socketio.on('disconnect')
-        def handle_disconnect():
-            print(f"[API LAYER] WebSocket client disconnected: {request.sid}")
-            
-        # RESTORED: Handle progress events from execution layer
-        @self.socketio.on('execution_progress')
-        def handle_execution_progress(data):
-            """Forward progress events from execution layer to frontend"""
-            try:
-                job_id = data.get('job_id')
-                if job_id:
-                    print(f"[API LAYER] 📡 Forwarding progress for job {job_id}: {data.get('emoji', '')} {data.get('stage', '')} - {data.get('message', '')}")
-                    
-                    # Get job info to determine session
-                    job_info = self.job_manager.get_job(job_id)
-                    if job_info:
-                        session_id = job_info.get('session_id', '')
-                        if session_id:
-                            # Emit to session-specific room
-                            room_name = f'session_{session_id}_job_{job_id}'
-                            self.socketio.emit('job_progress', data, room=room_name)
-                            print(f"[API LAYER] ✅ Progress forwarded to room: {room_name}")
-                        else:
-                            # Fallback to job-only room
-                            self.socketio.emit('job_progress', data, room=f'job_{job_id}')
-                            print(f"[API LAYER] ✅ Progress forwarded to room: job_{job_id}")
-                    else:
-                        print(f"[API LAYER] ⚠️  Job not found for progress event: {job_id}")
-            except Exception as e:
-                print(f"[API LAYER] ❌ Error forwarding execution progress: {e}")
-        
-        @self.socketio.on('join_job')
-        def handle_join_job(data):
-            job_id = data.get('job_id')
-            user_email = data.get('user_email', '').lower()  # Get user email from client
-            session_id = data.get('session_id', '')  # Get session ID from client
-            
-            if job_id and user_email and session_id:
-                # First verify that the user owns the session
-                if not self.session_manager.check_session_ownership(session_id, user_email):
-                    emit('join_error', {'job_id': job_id, 'error': 'Access denied: You do not own this session'})
-                    print(f"[API LAYER] Session access denied for user {user_email} to session {session_id}")
-                    return
-                
-                # Then verify that the user owns this job and it's in their session
-                job_info = self.job_manager.get_job(job_id)
-                if job_info:
-                    job_user_info = job_info.get('user_info', {})
-                    job_user_email = job_user_info.get('email', '').lower()
-                    job_session_id = job_info.get('session_id', '')
-                    
-                    if job_user_email == user_email and job_session_id == session_id:
-                        # User owns both the session and the job - join session-aware room
-                        room_name = f'session_{session_id}_job_{job_id}'
-                        join_room(room_name)
-                        
-                        # Start simple job monitoring for this job
-                        self.monitor_job_status(job_id)
-                        emit('joined_job', {'job_id': job_id, 'session_id': session_id, 'status': 'joined', 'room': room_name})
-                        print(f"[API LAYER] User {user_email} joined session-aware job monitoring: {job_id} in session {session_id}")
-                    else:
-                        # User doesn't own this job or job is in wrong session
-                        emit('join_error', {'job_id': job_id, 'error': 'Access denied: Job not found in your session'})
-                        print(f"[API LAYER] Job access denied for user {user_email} to job {job_id}")
-                else:
-                    emit('join_error', {'job_id': job_id, 'error': 'Job not found'})
-            else:
-                emit('join_error', {'error': 'Missing job_id, user_email, or session_id'})
-        
-        @self.socketio.on('leave_job')
-        def handle_leave_job(data):
-            job_id = data.get('job_id')
-            user_email = data.get('user_email', '').lower()
-            session_id = data.get('session_id', '')
-            
-            if job_id and user_email and session_id:
-                # Leave session-aware job room
-                room_name = f'session_{session_id}_job_{job_id}'
-                leave_room(room_name)
-                emit('left_job', {'job_id': job_id, 'session_id': session_id, 'status': 'left', 'room': room_name})
-                print(f"[API LAYER] User {user_email} left session-aware job monitoring: {job_id} in session {session_id}")
-        
-        @self.socketio.on('join_job_logs')
-        def handle_join_job_logs(data):
-            """Handle joining a job-specific log streaming room"""
-            job_id = data.get('job_id')
-            user_email = data.get('user_email', '').lower()
-            session_id = data.get('session_id', '')
-            
-            if job_id and user_email and session_id:
-                # First verify that the user owns the session
-                if not self.session_manager.check_session_ownership(session_id, user_email):
-                    emit('join_logs_error', {'job_id': job_id, 'error': 'Access denied: You do not own this session'})
-                    print(f"[API LAYER] Log session access denied for user {user_email} to session {session_id}")
-                    return
-                
-                # Then verify that the user owns this job and it's in their session
-                job_info = self.job_manager.get_job(job_id)
-                if job_info:
-                    job_user_info = job_info.get('user_info', {})
-                    job_user_email = job_user_info.get('email', '').lower()
-                    job_session_id = job_info.get('session_id', '')
-                    
-                    if job_user_email == user_email and job_session_id == session_id:
-                        # User owns both the session and the job - join job-specific log room
-                        log_room_name = f'job_logs_{job_id}'
-                        join_room(log_room_name)
-                        
-                        # Send existing job logs immediately
-                        existing_logs = get_job_logs(job_id)
-                        for log in existing_logs:
-                            emit('job_log', log)
-                        
-                        emit('joined_job_logs', {'job_id': job_id, 'session_id': session_id, 'status': 'joined', 'room': log_room_name})
-                        print(f"[API LAYER] User {user_email} joined job log streaming: {job_id}")
-                    else:
-                        emit('join_logs_error', {'job_id': job_id, 'error': 'Access denied: Job not found in your session'})
-                        print(f"[API LAYER] Job log access denied for user {user_email} to job {job_id}")
-                else:
-                    emit('join_logs_error', {'job_id': job_id, 'error': 'Job not found'})
-            else:
-                emit('join_logs_error', {'error': 'Missing job_id, user_email, or session_id'})
-        
-        @self.socketio.on('leave_job_logs')
-        def handle_leave_job_logs(data):
-            """Handle leaving a job-specific log streaming room"""
-            job_id = data.get('job_id')
-            user_email = data.get('user_email', '').lower()
-            
-            if job_id and user_email:
-                # Leave job log room
-                log_room_name = f'job_logs_{job_id}'
-                leave_room(log_room_name)
-                emit('left_job_logs', {'job_id': job_id, 'status': 'left', 'room': log_room_name})
-                print(f"[API LAYER] User {user_email} left job log streaming: {job_id}")
+        """Delegate Socket.IO event registration to the blueprint module without changing behavior."""
+        from .blueprints.socketio_events import register_socketio_events
+        register_socketio_events(self.socketio, self.job_manager, self.session_manager)
     
     def monitor_job_status(self, job_id):
         """Simple job status monitoring without complex WebSocket forwarding"""
@@ -588,26 +456,7 @@ class ApiServer:
                 add_log(f"Error getting system status: {str(e)}")
                 return jsonify({'error': f'Failed to get system status: {str(e)}'}), 500
         
-        @self.app.route('/session_id')
-        def session_id():
-            try:
-                # Get user info for session ownership
-                token_payload = g.get('user', {})
-                
-                # Create session with Docker container and user info
-                session_id, container_id = self.session_manager.create_session(user_info=token_payload)
-                add_log(f"Session created: {session_id} with container: {container_id[:12]} for user: {token_payload.get('email', 'unknown')}")
-                return jsonify({
-                    'session_id': session_id,
-                    'container_id': container_id,
-                    'status': 'success'
-                })
-            except Exception as e:
-                add_log(f"Error creating session: {str(e)}")
-                return jsonify({
-                    'error': f'Failed to create session: {str(e)}',
-                    'status': 'error'
-                }), 500
+        # Session routes moved to blueprints.sessions
         
         def check_session_has_input_data(session_id):
             """Check if session has any input data files"""
@@ -625,119 +474,13 @@ class ApiServer:
                 add_log(f"Error checking input data for session {session_id}: {str(e)}")
                 return False
 
-        @self.app.route('/validate_session/<session_id>')
-        def validate_session(session_id):
-            """Validate if a session exists and is active"""
-            try:
-                session_info = self.session_manager.get_session_container(session_id)
-                if session_info:
-                    # Check if session has input data
-                    has_input_data = check_session_has_input_data(session_id)
-                    
-                    # Check if container API is responsive
-                    container_port = session_info.get('container_port')
-                    if container_port:
-                        try:
-                            # Try to ping the container's health endpoint
-                            response = self.session.get(f"http://localhost:{container_port}/health", timeout=5)
-                            if response.status_code == 200:
-                                # add_log(f"Session {session_id} validated successfully")
-                                return jsonify({
-                                    'session_id': session_id,
-                                    'container_id': session_info['container_id'],
-                                    'status': 'active',
-                                    'valid': True,
-                                    'has_input_data': has_input_data
-                                })
-                        except requests.RequestException as e:
-                            add_log(f"Container for session {session_id} is not responding: {str(e)}")
-                            # Container exists but API is not responding
-                            pass
-                    
-                    # If we couldn't validate via API, just check if container exists
-                    # add_log(f"Session {session_id} validated successfully (container exists)")
-                    return jsonify({
-                        'session_id': session_id,
-                        'container_id': session_info['container_id'],
-                        'status': 'active',
-                        'valid': True,
-                        'has_input_data': has_input_data
-                    })
-                else:
-                    # Check if session has input data even when not active
-                    has_input_data = check_session_has_input_data(session_id)
-                    add_log(f"Session {session_id} validation failed - not found or inactive")
-                    return jsonify({
-                        'session_id': session_id,
-                        'status': 'not_found',
-                        'valid': False,
-                        'has_input_data': has_input_data
-                    })
-            except Exception as e:
-                add_log(f"Error validating session {session_id}: {str(e)}")
-                return jsonify({
-                    'error': f'Failed to validate session: {str(e)}',
-                    'status': 'error',
-                    'valid': False,
-                    'has_input_data': False
-                }), 500
+        # validate_session moved to blueprints.sessions
         
-        @self.app.route('/session_status/<session_id>')
-        def session_status(session_id):
-            """Get status of a specific session"""
-            try:
-                status = self.session_manager.get_session_status(session_id)
-                return jsonify(status)
-            except Exception as e:
-                add_log(f"Error getting session status: {str(e)}")
-                return jsonify({
-                    'error': f'Failed to get session status: {str(e)}',
-                    'status': 'error'
-                }), 500
+        # session_status moved to blueprints.sessions
         
-        @self.app.route('/restart_session/<session_id>', methods=['POST'])
-        def restart_user_session(session_id):
-            """Restart a specific session"""
-            try:
-                success = self.session_manager.restart_session(session_id)
-                if success:
-                    return jsonify({
-                        'message': f'Session {session_id} restarted successfully',
-                        'status': 'success'
-                    })
-                else:
-                    return jsonify({
-                        'error': f'Failed to restart session {session_id}',
-                        'status': 'error'
-                    }), 404
-            except Exception as e:
-                add_log(f"Error restarting session: {str(e)}")
-                return jsonify({
-                    'error': f'Failed to restart session: {str(e)}',
-                    'status': 'error'
-                }), 500
+        # restart_session moved to blueprints.sessions
 
-        @self.app.route('/cleanup_session/<session_id>', methods=['POST'])
-        def cleanup_session(session_id):
-            """Clean up a specific session"""
-            try:
-                success = self.session_manager.cleanup_session(session_id)
-                if success:
-                    return jsonify({
-                        'message': f'Session {session_id} cleaned up successfully',
-                        'status': 'success'
-                    })
-                else:
-                    return jsonify({
-                        'error': f'Failed to cleanup session {session_id}',
-                        'status': 'error'
-                    }), 404
-            except Exception as e:
-                add_log(f"Error cleaning up session: {str(e)}")
-                return jsonify({
-                    'error': f'Failed to cleanup session: {str(e)}',
-                    'status': 'error'
-                }), 500
+        # cleanup_session moved to blueprints.sessions
         
         @self.app.route('/logs')
         @self.app.route('/logs/<session_id>')
@@ -837,213 +580,10 @@ class ApiServer:
             except Exception as e:
                 add_log(f"Error getting job logs for {job_id}: {str(e)}")
                 return jsonify({'error': f'Failed to get job logs: {str(e)}'}), 500
-
                 
-        @self.app.route('/validate_data', methods=['POST'])
-        def validate_data():
-            """Validate uploaded CSV/XLSX file and return a strict response shape."""
-            try:
-                MAX_BYTES = 20 * 1024 * 1024  # 20MB
-                allowed_ext = {'.csv', '.xlsx'}
+        # validate_data moved to blueprints.data and removed from this module to avoid duplication
 
-                # Helper for uniform failure
-                def fail(msg: str, status: int = 400):
-                    return jsonify({
-                        'valid': False,
-                        'message': 'validation failed',
-                        'error': msg,
-                    }), status
-
-                # Check file in form-data
-                if 'file' not in request.files:
-                    return fail('Missing file in request', 400)
-
-                session_id = request.form.get('session_id')
-                if not session_id:
-                    return fail('Missing session_id in request', 400)
-
-                f = request.files['file']
-                filename = f.filename or ''
-                if not filename:
-                    return fail('Empty filename', 400)
-
-                # Size check via content_length (entire request) – fallback to stream size when possible
-                if request.content_length and request.content_length > MAX_BYTES:
-                    return fail('File too large. Maximum allowed size is 20MB.', 413)
-
-                ext = '.' + filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
-                if ext not in allowed_ext:
-                    return fail('Invalid file type. Only CSV and XLSX are allowed.', 415)
-
-                # Persist to a temporary file to allow pandas to read
-                safe_name = secure_filename(filename)
-                with tempfile.NamedTemporaryFile(prefix='upload_', suffix=ext, delete=False) as tmp:
-                    tmp_path = tmp.name
-                    f.save(tmp)
-
-                # Post-save size check (for clients that omit content-length)
-                try:
-                    if os.path.getsize(tmp_path) > MAX_BYTES:
-                        os.remove(tmp_path)
-                        return fail('File too large. Maximum allowed size is 20MB.', 413)
-                except Exception:
-                    pass
-
-                import pandas as pd  # local import to reduce cold-start cost
-
-                errors: List[str] = []
-                warnings: List[str] = []
-                info: Dict[str, Any] = {}
-
-                # Load with pandas
-                try:
-                    if ext == '.csv':
-                        # Read limited rows first to validate quickly
-                        df = pd.read_csv(tmp_path, header=0)
-                    else:  # .xlsx
-                        try:
-                            df = pd.read_excel(tmp_path, header=0, engine='openpyxl')
-                        except Exception:
-                            # Fallback without specifying engine
-                            df = pd.read_excel(tmp_path, header=0)
-                except UnicodeDecodeError as e:
-                    os.remove(tmp_path)
-                    msg = f'Encoding error: {str(e)}'
-                    return fail(msg, 422)
-                except ValueError as e:
-                    os.remove(tmp_path)
-                    msg = f'Value error while reading file: {str(e)}'
-                    return fail(msg, 422)
-                except Exception as e:
-                    os.remove(tmp_path)
-                    msg = f'Failed to read file: {str(e)}'
-                    return fail(msg, 422)
-                finally:
-                    # Remove temp file regardless of parse result
-                    try:
-                        if os.path.exists(tmp_path):
-                            os.remove(tmp_path)
-                    except Exception:
-                        pass
-
-                # Basic header checks
-                col_names = [str(c) for c in df.columns.tolist()]
-
-                # 1) No empty or Unnamed columns
-                if any((c.strip() == '' or c.lower().startswith('unnamed')) for c in col_names):
-                    errors.append('Header row has empty or Unnamed columns. Ensure the first row contains proper column names.')
-
-                # 2) No duplicate columns (case-insensitive)
-                lowered = [c.lower() for c in col_names]
-                if len(set(lowered)) != len(lowered):
-                    errors.append('Duplicate column names detected (case-insensitive). Column names must be unique.')
-
-                # 3) Heuristic: column names should not be numeric-like (indicates missing header)
-                def is_numeric_like(s: str) -> bool:
-                    try:
-                        float(s.replace(',', ''))
-                        return True
-                    except Exception:
-                        return False
-
-                numeric_like_count = sum(1 for c in col_names if is_numeric_like(c))
-                if df.shape[1] > 0 and numeric_like_count >= max(1, int(0.6 * df.shape[1])):
-                    errors.append('First row appears to be data, not headers. Please include a header row as the first line.')
-
-                # Shape checks (updated limits)
-                rows, cols = df.shape
-                if cols > 30:
-                    errors.append('Too many columns. Maximum allowed is 30.')
-                if rows > 500000:
-                    errors.append('Too many rows. Maximum allowed is 500000.')
-
-                # Content checks: disallow JSON/blob/image-like payloads in textual columns
-                import re
-                import json as pyjson
-
-                base64_regex = re.compile(r'^[A-Za-z0-9+/=\r\n]+$')
-
-                def looks_like_json(text: str) -> bool:
-                    text = text.strip()
-                    if not text or (text[0] not in '{['):
-                        return False
-                    # Fast path: avoid huge payloads
-                    if len(text) > 20000:
-                        return True
-                    try:
-                        pyjson.loads(text)
-                        return True
-                    except Exception:
-                        return False
-
-                def looks_like_base64_blob(text: str) -> bool:
-                    # Heuristic: long and restricted alphabet typical of base64
-                    if len(text) < 1000:
-                        return False
-                    # Remove whitespace/newlines
-                    compact = ''.join(ch for ch in text if not ch.isspace())
-                    if not base64_regex.match(compact):
-                        return False
-                    # Lots of padding or excessive length suggests blob
-                    if len(compact) > 5000:
-                        return True
-                    return False
-
-                # Examine object columns only
-                try:
-                    object_cols = [c for c in df.columns if str(df[c].dtype) == 'object']
-                    sample_size = min(int(rows), 1000)
-                    for col in object_cols:
-                        series = df[col].dropna().astype(str).head(sample_size)
-                        if series.empty:
-                            continue
-                        very_long = (series.str.len() > 50000).any()
-                        json_like_ratio = series.apply(looks_like_json).mean() if len(series) > 0 else 0
-                        b64_like_ratio = series.apply(looks_like_base64_blob).mean() if len(series) > 0 else 0
-                        if very_long or json_like_ratio >= 0.2 or b64_like_ratio >= 0.2:
-                            errors.append(f"Column '{col}' appears to contain non-text payloads (JSON/blob/image/base64). These are not allowed.")
-                except Exception:
-                    # Non-fatal: if inspection fails, skip content checks
-                    pass
-
-                # Decide result strictly
-                valid = len(errors) == 0
-
-                if valid:
-                    # Save validated file as .pkl for future use
-                    try:
-                        input_data_dir = os.path.join('execution_layer', 'input_data', session_id)
-                        os.makedirs(input_data_dir, exist_ok=True)
-                        
-                        # Create filename without extension and add .pkl
-                        base_filename = filename.rsplit('.', 1)[0] if '.' in filename else filename
-                        pkl_filename = f"{base_filename}.pkl"
-                        pkl_path = os.path.join(input_data_dir, pkl_filename)
-                        
-                        # Save as pickle
-                        df.to_pickle(pkl_path)
-                        
-                        return jsonify({
-                            'valid': True,
-                            'message': 'validation successful',
-                            'saved_file': pkl_filename
-                        }), 200
-                    except Exception as e:
-                        return jsonify({
-                            'valid': False,
-                            'message': 'validation failed',
-                            'error': f'Failed to save file: {str(e)}'
-                        }), 500
-                else:
-                    primary_error = errors[0] if errors else 'Validation failed'
-                    return fail(primary_error, 400)
-            except Exception as e:
-                traceback.print_exc()
-                msg = f'Unexpected error during validation: {str(e)}'
-                return jsonify({'valid': False, 'message': 'validation failed', 'error': msg}), 500
-
-        @self.app.route('/generate_domain_dictionary', methods=['POST'])
-        def generate_domain_dictionary():
+        # generate_domain_dictionary moved to blueprints.data
             """Generate a domain dictionary JSON from user-provided context and the saved pkl file."""
             try:
                 def fail(msg: str, status: int = 400):
@@ -1111,35 +651,34 @@ class ApiServer:
 
                 # Create enhanced prompt
                 prompt = f"""Create a comprehensive domain dictionary JSON for this dataset:
+                Domain: {domain_desc}
+                File Info: {file_info}
+                File: {filename}
+                Shape: {rows} rows, {cols} columns
 
-Domain: {domain_desc}
-File Info: {file_info}
-File: {filename}
-Shape: {rows} rows, {cols} columns
+                Detailed Column Analysis:
+                {json.dumps(columns_info, indent=2)}
 
-Detailed Column Analysis:
-{json.dumps(columns_info, indent=2)}
+                Business Rules: {underlying_list}
 
-Business Rules: {underlying_list}
+                Instructions:
+                - Write detailed, meaningful descriptions for each column based on the unique values, data patterns, and domain context
+                - For ID columns, specify what entity they identify
+                - For categorical columns, mention the categories/types if clear from unique values
+                - For date columns, specify the purpose (creation, modification, expiry, etc.)
+                - For amount/numeric columns, specify what they measure
+                - Consider null counts and data quality in descriptions
 
-Instructions:
-- Write detailed, meaningful descriptions for each column based on the unique values, data patterns, and domain context
-- For ID columns, specify what entity they identify
-- For categorical columns, mention the categories/types if clear from unique values
-- For date columns, specify the purpose (creation, modification, expiry, etc.)
-- For amount/numeric columns, specify what they measure
-- Consider null counts and data quality in descriptions
-
-Return ONLY a JSON object with this structure:
-{{
-  "domain": "detailed domain description",
-  "data_set_files": {{"{filename}": "comprehensive file description"}},
-  "columns": [
-    {{"name": "column_name", "description": "detailed, context-aware description based on data analysis", "dtype": "data_type"}}
-  ],
-  "underlying_conditions_about_dataset": ["detailed business rule 1", "detailed business rule 2"]
-}}"""
-
+                Return ONLY a JSON object with this structure:
+                {{
+                "domain": "detailed domain description",
+                "data_set_files": {{"{filename}": "comprehensive file description"}},
+                "columns": [
+                    {{"name": "column_name", "description": "detailed, context-aware description based on data analysis", "dtype": "data_type"}}
+                ],
+                "underlying_conditions_about_dataset": ["detailed business rule 1", "detailed business rule 2"]
+                }}
+                """
                 # Call OpenAI using same pattern as analyze_user_query
                 client = OpenAI()
                 response = client.chat.completions.create(
@@ -1174,8 +713,7 @@ Return ONLY a JSON object with this structure:
                 traceback.print_exc()
                 return fail(f'Unexpected error: {str(e)}', 500)
 
-        @self.app.route('/save_domain_dictionary', methods=['POST'])
-        def save_domain_dictionary():
+        # save_domain_dictionary moved to blueprints.data
             """Save the domain dictionary to domain_directory.json file."""
             try:
                 def fail(msg: str, status: int = 400):
@@ -1208,8 +746,7 @@ Return ONLY a JSON object with this structure:
                 traceback.print_exc()
                 return fail(f'Failed to save domain dictionary: {str(e)}', 500)
 
-        @self.app.route('/create_job', methods=['POST'])
-        def create_job():
+        # create_job moved to blueprints.sessions
             """Create a new analysis job and return job ID immediately"""
             token_payload = g.get('user', {})
             #
@@ -1271,8 +808,7 @@ Return ONLY a JSON object with this structure:
                 traceback.print_exc()
                 return jsonify({'error': str(e)}), 500
         
-        @self.app.route('/job_status/<job_id>')
-        def get_job_status(job_id):
+        # job_status moved to blueprints.sessions
             """Get status of a specific job"""
             try:
                 job_info = self.job_manager.get_job(job_id)
@@ -1297,10 +833,7 @@ Return ONLY a JSON object with this structure:
                 add_log(f"Error getting job status: {str(e)}")
                 return jsonify({'error': f'Failed to get job status: {str(e)}'}), 500
         
-
-        
-        @self.app.route('/job_report/<job_id>')
-        def get_job_report(job_id):
+        # job_report moved to blueprints.sessions
             """Get the analysis report for a completed job"""
             try:
                 job_info = self.job_manager.get_job(job_id)
@@ -1325,8 +858,7 @@ Return ONLY a JSON object with this structure:
                 return jsonify({'error': f'Failed to read report: {str(e)}'}), 500
         
         # Analysis History API endpoints
-        @self.app.route('/analysis_history', methods=['GET'])
-        def get_analysis_history():
+        # analysis_history moved to blueprints.sessions
             """Get user's completed analysis history across all sessions (latest first, no pagination)"""
             try:
                 # Get authenticated user info from global context
@@ -1396,8 +928,7 @@ Return ONLY a JSON object with this structure:
                 add_log(f"Error getting analysis history: {str(e)}")
                 return jsonify({'error': f'Failed to get analysis history: {str(e)}'}), 500
         
-        @self.app.route('/analysis_report/<job_id>', methods=['GET'])
-        def get_analysis_report(job_id):
+        # analysis_report moved to blueprints.sessions
             """Get analysis report by fetching HTML content from Firebase Storage URL"""
             try:
                 # Get authenticated user info from global context
@@ -1443,7 +974,6 @@ Return ONLY a JSON object with this structure:
         
         # Backward compatibility routes
         @self.app.route('/generate_pdf', methods=['POST'])
-
         def generate_pdf():
             from flask import Flask, request, send_file, make_response
             from weasyprint import HTML, CSS
