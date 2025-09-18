@@ -13,3 +13,5 @@ sessions.json
 jobs.json
 Dockerfile
 insightbot-467305-firebase-adminsdk-fbsvc-7a3d9adf09.json
+
+backend/Dockerfile
