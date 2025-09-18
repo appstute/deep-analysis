@@ -99,8 +99,10 @@ class ApiServer:
         try:
             from .blueprints.sessions import sessions_bp
             from .blueprints.data import data_bp
+            from .blueprints.salesforce import salesforce_bp
             self.app.register_blueprint(sessions_bp)
             self.app.register_blueprint(data_bp)
+            self.app.register_blueprint(salesforce_bp)
         except Exception as e:
             print(f"⚠️  Failed to register blueprints: {e}")
 
