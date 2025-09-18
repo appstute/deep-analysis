@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSession } from '@/contexts/SessionContext';
@@ -6,6 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import ConnectorsGrid, { ConnectorItem } from '@/components/ConnectorsGrid';
+
 import { 
   Upload, 
   Brain, 
@@ -15,16 +18,23 @@ import {
   Users,
   LogOut,
   Play,
-  PlusCircle
+  PlusCircle,
+  Cloud,
+  Database,
+  ChevronRight
 } from 'lucide-react';
 
 const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const { hasInputData } = useSession();
   const navigate = useNavigate();
+  const [connectorsOpen, setConnectorsOpen] = useState(false);
+
 
   const handleGetStarted = () => {
-    navigate('/upload');
+        setConnectorsOpen(true);
+
+    // navigate('/upload');
   };
 
   const handleContinueAnalysis = () => {
@@ -115,10 +125,10 @@ const Dashboard: React.FC = () => {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent>
+             <CardContent>
                 <p className="text-muted-foreground mb-4">
-                  Begin with uploading your CSV or Excel file, define your domain context, 
-                  and let our AI create a comprehensive analysis.
+                Start by connecting your data sources—whether through integrations or by uploading a CSV/Excel file. 
+                Define your domain context, and let our AI generate a comprehensive analysis.
                 </p>
                 <div className="flex items-center space-x-4 text-sm text-muted-foreground">
                   <div className="flex items-center space-x-1">
@@ -229,6 +239,44 @@ const Dashboard: React.FC = () => {
           </div> */}
         </div>
       </main>
+            {/* Connectors Modal */}
+      <Dialog open={connectorsOpen} onOpenChange={setConnectorsOpen}>
+        <DialogContent className="sm:max-w-[560px]">
+          <DialogHeader>
+            <DialogTitle>Choose a data connector</DialogTitle>
+            <DialogDescription>
+              Pick where your data lives. You can add more connectors later.
+            </DialogDescription>
+          </DialogHeader>
+          {(() => {
+            const items: ConnectorItem[] = [
+              {
+                key: 'upload',
+                title: 'Upload File',
+                description: 'CSV, Excel, or JSON files',
+                icon: (
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                    <Upload className="w-5 h-5 text-primary" />
+                  </div>
+                ),
+                onClick: () => { setConnectorsOpen(false); navigate('/upload'); },
+              },
+              {
+                key: 'salesforce',
+                title: 'Salesforce',
+                description: 'Connect your Salesforce org',
+                icon: (
+                  <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
+                    <Cloud className="w-5 h-5 text-blue-500" />
+                  </div>
+                ),
+                onClick: () => { setConnectorsOpen(false); navigate('/connect/salesforce'); },
+              }
+            ];
+            return <ConnectorsGrid items={items} />;
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
