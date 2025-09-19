@@ -18,3 +18,4 @@ docker==7.1.0
 weasyprint==66.0
 gunicorn==22.0.0
 firebase-admin==6.5.0
+google-cloud-secret-manager>=2.24.0

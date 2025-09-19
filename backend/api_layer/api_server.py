@@ -99,8 +99,10 @@ class ApiServer:
         try:
             from .blueprints.sessions import sessions_bp
             from .blueprints.data import data_bp
+            from .blueprints.salesforce import salesforce_bp
             self.app.register_blueprint(sessions_bp)
             self.app.register_blueprint(data_bp)
+            self.app.register_blueprint(salesforce_bp)
         except Exception as e:
             print(f"⚠️  Failed to register blueprints: {e}")
 
@@ -114,6 +116,7 @@ class ApiServer:
                 request.path.startswith('/users/') or 
                 request.path == '/google_auth' or 
                 request.path == '/refresh_token' or 
+                request.path == '/salesforce/save_credentials' or 
                 request.path == '/system/status'):
                 return None
 
