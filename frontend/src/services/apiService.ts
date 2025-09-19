@@ -59,7 +59,7 @@ const globalUnauthorizedHandler = (status: number): boolean => {
 
 // Create axios instance
 const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_APP_API_URL || 'http://localhost:8000',
+  baseURL: import.meta.env.VITE_APP_API_URL || 'http://192.168.0.88:5000',
   headers: {
     'Content-Type': 'application/json',
   },
