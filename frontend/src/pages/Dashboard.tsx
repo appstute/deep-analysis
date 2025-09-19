@@ -269,7 +269,10 @@ const Dashboard: React.FC = () => {
                     <Cloud className="w-5 h-5 text-blue-500" />
                   </div>
                 ),
-                onClick: () => { setConnectorsOpen(false); navigate('/connect/salesforce'); },
+                onClick: () => { setConnectorsOpen(false);
+                  navigate('/connect/salesforce', {
+    state: { email: user?.email, sessionId: 'xyz-session-id' } // replace with real API sessionId
+  });; },
               }
             ];
             return <ConnectorsGrid items={items} />;
